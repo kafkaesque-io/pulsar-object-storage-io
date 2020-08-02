@@ -24,6 +24,8 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.net.HostAndPort;
+import com.kesque.pulsar.sink.s3.storage.CompressionType;
+
 import lombok.Data;
 import lombok.experimental.Accessors;
 import org.apache.commons.lang3.StringUtils;
@@ -42,9 +44,24 @@ public class AWSS3Config implements Serializable {
     public static final String ACCESS_KEY_NAME = "accessKey";
     public static final String SECRET_KEY_NAME = "secretKey";
 
+    public int S3RetryBackoffConfig = 100; // ms
+    public int S3PartRetries = 4;
+
     public String endpointURL = "";
-    public String AccessKeyId;
-    public String SecretAccessKey;
+    public String AccessKeyId = null;
+    public String getAccessKeyId() {
+        return this.AccessKeyId;
+    }
+    public void setAccessKeyId(String keyId) {
+        this.AccessKeyId = keyId;
+    }
+    public String SecretAccessKey = null;
+    public String getSecretAccessKey() {
+        return this.SecretAccessKey;
+    }
+    public void setSecretAccessKey(String secretKey) {
+        this.SecretAccessKey = secretKey;
+    }
 
     @FieldDoc(
         required = false,
@@ -71,6 +88,12 @@ public class AWSS3Config implements Serializable {
     public void setBucketName(String bucketName) {
         this.bucketName = bucketName;
     }
+
+    public int partSize = 5 * 1024 * 1024;
+
+    public int compressionLevel = 1; // from -1 to 9
+
+    public CompressionType compressionType = CompressionType.NONE;
 
     public static AWSS3Config load(String yamlFile) throws IOException {
         ObjectMapper mapper = new ObjectMapper(new YAMLFactory());

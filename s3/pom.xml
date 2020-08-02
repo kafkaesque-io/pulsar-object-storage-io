@@ -5,13 +5,17 @@
   <artifactId>pulsar-io-s3</artifactId>
   <packaging>jar</packaging>
   <version>1.0</version>
-  <name>pulsar-io: :: s3</name>
+  <name>pulsar-cloud-storage-io: :: s3</name>
   <url>http://maven.apache.org</url>
   <properties>
     <maven.compiler.source>1.8</maven.compiler.source>
     <maven.compiler.target>1.8</maven.compiler.target>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <pulsar.version>2.5.0</pulsar.version>
+    <hadoop.version>2.7.0</hadoop.version>
+    <parquet.hadoop.version>1.10.0</parquet.hadoop.version>
+    <avro.version>1.8.2</avro.version>
+    <parquet.avro.version>1.10.0</parquet.avro.version>
   </properties>
   <dependencies>
     <dependency>
@@ -31,6 +35,12 @@
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-core</artifactId>
       <version>2.9.6</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.kitesdk</groupId>
+      <artifactId>kite-data-core</artifactId>
+      <version>1.1.0</version>
     </dependency>
 
     <dependency>
@@ -92,17 +102,71 @@
       </exclusions>
     </dependency>
 
-    <!-- grpc -->
-    <dependency>
-      <groupId>io.grpc</groupId>
-      <artifactId>grpc-all</artifactId>
-      <version>1.18.0</version>
-    </dependency>
-
     <dependency>
       <groupId>com.google.guava</groupId>
       <artifactId>guava</artifactId>
       <version>21.0</version>
+    </dependency>
+
+    <!-- dependency>
+      <groupId>org.apache.hadoop</groupId>
+      <artifactId>hadoop-client</artifactId>
+      <version>${hadoop.version}</version>
+    </dependency -->
+    <dependency>
+      <groupId>org.apache.parquet</groupId>
+      <artifactId>parquet-hadoop</artifactId>
+      <version>${parquet.hadoop.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.avro</groupId>
+      <artifactId>avro</artifactId>
+      <version>${avro.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.parquet</groupId>
+      <artifactId>parquet-avro</artifactId>
+      <version>${parquet.avro.version}</version>
+    </dependency>
+    
+    <dependency>
+      <groupId>org.apache.hadoop</groupId>
+      <artifactId>hadoop-common</artifactId>
+      <version>${hadoop.version}</version>
+      <exclusions>
+          <exclusion>
+            <groupId>log4j</groupId>
+            <artifactId>log4j</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-log4j12</artifactId>
+          </exclusion>
+          <exclusion>
+              <groupId>org.apache.avro</groupId>
+              <artifactId>avro</artifactId>
+          </exclusion>
+          <exclusion>
+              <groupId>com.google.guava</groupId>
+              <artifactId>guava</artifactId>
+          </exclusion>
+          <exclusion>
+              <groupId>org.apache.htrace</groupId>
+              <artifactId>htrace-core</artifactId>
+          </exclusion>
+          <exclusion>
+              <groupId>org.mortbay.jetty</groupId>
+              <artifactId>jetty-util</artifactId>
+          </exclusion>
+          <exclusion>
+              <groupId>commons-beanutils</groupId>
+              <artifactId>commons-beanutils-core</artifactId>
+          </exclusion>
+          <exclusion>
+              <groupId>org.codehaus.jackson</groupId>
+              <artifactId>jackson-mapper-asl</artifactId>
+          </exclusion>
+      </exclusions>
     </dependency>
   </dependencies>
   
