@@ -48,8 +48,6 @@ public class AWSS3Sink implements Sink<byte[]> {
 
     private static final Logger log = LoggerFactory.getLogger(AWSS3Sink.class);
 
-    private static final String MessageIdImpl = null;
-
     private AWSS3Config s3Config;
     private String bucketName;
     private String filePrefix = "";
