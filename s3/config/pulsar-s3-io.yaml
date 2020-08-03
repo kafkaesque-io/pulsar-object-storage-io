@@ -1,0 +1,6 @@
+configs:
+  accessKeyId: ""
+  secretAccessKey: ""
+  awsregion: "us-east-2"
+  bucketName: "bucket-name"
+  partSize: 5242880

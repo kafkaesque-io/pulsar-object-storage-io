@@ -40,7 +40,6 @@ public class S3Storage {
     private final String url;
     private final String bucketName;
     private final AmazonS3 s3;
-    private final TransferManager transferManager;
 
     private final AWSS3Config conf;
     private static final String VERSION_FORMAT = "APN/1.0 Kesque/1.0 KesqueS3Sink/%s";
@@ -104,7 +103,6 @@ public class S3Storage {
         this.conf = conf;
         this.bucketName = conf.getBucketName();
         this.s3 = newS3Client(conf);
-        this.transferManager = newS3TransferManager();
     }
     
     public AmazonS3 newS3Client(AWSS3Config config) {
