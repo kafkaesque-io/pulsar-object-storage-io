@@ -142,7 +142,7 @@ public class S3OutputStream extends PositionOutputStream {
       multiPartUpload = newMultipartUpload();
     }
 
-    System.out.println("OOOOOOOOOOOOOOOOOOOOOOOOOObject upload started");
+    System.out.println("Object upload started");
 
     try {
       multiPartUpload.uploadPart(new ByteArrayInputStream(buffer.array()), size);

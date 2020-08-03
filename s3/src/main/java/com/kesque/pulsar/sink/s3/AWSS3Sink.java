@@ -46,7 +46,8 @@ import org.slf4j.LoggerFactory;
 )
 public class AWSS3Sink implements Sink<byte[]> {
 
-    private static final Logger log = LoggerFactory.getLogger(AWSS3Sink.class);
+    private static final Logger LOG = LoggerFactory.getLogger(AWSS3Sink.class);
+
 
     private AWSS3Config s3Config;
     private String bucketName;
@@ -61,7 +62,6 @@ public class AWSS3Sink implements Sink<byte[]> {
     private SchemaInfo schemaInfo;
     private org.apache.avro.Schema avroSchema;
 
-    private AmazonS3 s3Client;
     private ParquetRecordWriter recordWriter;
 
     private String filename;
@@ -96,7 +96,7 @@ public class AWSS3Sink implements Sink<byte[]> {
 
     @Override
     public void close() throws IOException {
-        log.info("s3 sink stopped...");
+        LOG.info("s3 sink stopped...");
     }
 
     /**
@@ -108,8 +108,12 @@ public class AWSS3Sink implements Sink<byte[]> {
     */
     @Override
     public void open(Map<String, Object> config, SinkContext sinkContext) throws Exception {
-        log.info("Open AWS S3 sink");
+        System.out.println("open aws s3 sink configs size " + config.size());
         s3Config = AWSS3Config.load(config);
+        System.out.println(s3Config.getAccessKeyId());
+        for (Map.Entry<String, Object> en : config.entrySet()) {
+            System.out.println(en.getKey());
+        }
 
         bucketName = s3Config.getBucketName();
         for (String topicName : sinkContext.getInputTopics()){
@@ -119,8 +123,6 @@ public class AWSS3Sink implements Sink<byte[]> {
         incomingList = Lists.newArrayList();
 
         flushExecutor = Executors.newScheduledThreadPool(1);
-
-        this.s3Client = s3Config.newS3Client();
 
         S3Storage storage = new S3Storage(this.s3Config, "");
         this.recordWriter = RecordWriterProvider.createParquetRecordWriter(s3Config, storage);

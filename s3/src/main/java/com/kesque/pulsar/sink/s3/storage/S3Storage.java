@@ -109,7 +109,7 @@ public class S3Storage {
     
     public AmazonS3 newS3Client(AWSS3Config config) {
         ClientConfiguration clientConfiguration = newClientConfiguration(config);
-        BasicAWSCredentials basicCredentials = new BasicAWSCredentials(config.AccessKeyId, config.SecretAccessKey);
+        BasicAWSCredentials basicCredentials = new BasicAWSCredentials(config.getAccessKeyId(), config.getSecretAccessKey());
         AWSStaticCredentialsProvider cred = new AWSStaticCredentialsProvider(basicCredentials);    
         AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard()
             // .withAccelerateModeEnabled(true) //config.getBoolean(WAN_MODE_CONFIG))

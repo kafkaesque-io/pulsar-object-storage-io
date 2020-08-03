@@ -41,26 +41,28 @@ public class AWSS3Config implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    public static final String ACCESS_KEY_NAME = "accessKey";
-    public static final String SECRET_KEY_NAME = "secretKey";
+    //public static final String ACCESS_KEY_NAME = "accessKey";
+    //public static final String SECRET_KEY_NAME = "secretKey";
 
     public int S3RetryBackoffConfig = 100; // ms
     public int S3PartRetries = 4;
 
     public String endpointURL = "";
-    public String AccessKeyId = null;
+
+    private String accessKeyId = null;
     public String getAccessKeyId() {
-        return this.AccessKeyId;
+        return this.accessKeyId;
     }
     public void setAccessKeyId(String keyId) {
-        this.AccessKeyId = keyId;
+        this.accessKeyId = keyId;
     }
-    public String SecretAccessKey = null;
+
+    private String secretAccessKey = null;
     public String getSecretAccessKey() {
-        return this.SecretAccessKey;
+        return this.secretAccessKey;
     }
     public void setSecretAccessKey(String secretKey) {
-        this.SecretAccessKey = secretKey;
+        this.secretAccessKey = secretKey;
     }
 
     @FieldDoc(
@@ -68,12 +70,12 @@ public class AWSS3Config implements Serializable {
         defaultValue = "",
         help = "Specific aws region. E.g. us-east-1, us-west-2"
     )
-    private String awsRegion = "";
+    private String awsregion = "";
     public String getAWSRegion() {
-        return this.awsRegion;
+        return this.awsregion;
     }
     public void setAWSRegion(String region) {
-        this.awsRegion = region;
+        this.awsregion = region;
     }
 
     @FieldDoc(
@@ -90,6 +92,12 @@ public class AWSS3Config implements Serializable {
     }
 
     public int partSize = 5 * 1024 * 1024;
+    public int getPartSize() {
+        return this.partSize;
+    }
+    public void setPartSize(int partSize) {
+        this.partSize = partSize;
+    }
 
     public int compressionLevel = 1; // from -1 to 9
 
@@ -112,7 +120,7 @@ public class AWSS3Config implements Serializable {
         .withCredentials(newCredentialsProvider());
         // .withClientConfiguration(clientConfiguration);
 
-        String region = this.awsRegion;
+        String region = this.awsregion;
         if (StringUtils.isBlank(this.endpointURL)) {
             builder = "us-east-1".equals(region)
                     ? builder.withRegion(Regions.US_EAST_1)
@@ -127,7 +135,7 @@ public class AWSS3Config implements Serializable {
     }
 
     public AWSCredentialsProvider newCredentialsProvider() {
-        BasicAWSCredentials basicCredentials = new BasicAWSCredentials(AccessKeyId, SecretAccessKey);
+        BasicAWSCredentials basicCredentials = new BasicAWSCredentials(accessKeyId, secretAccessKey);
         return new AWSStaticCredentialsProvider(basicCredentials);
     }
 }

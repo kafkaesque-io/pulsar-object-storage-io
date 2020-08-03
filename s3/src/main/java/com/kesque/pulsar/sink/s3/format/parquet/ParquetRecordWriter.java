@@ -46,8 +46,8 @@ public class ParquetRecordWriter implements RecordWriter {
         this.s3Storage = storage;
 
         parquetWriterConfig = new Configuration();
-        parquetWriterConfig.set("fs.s3.awsAccessKeyId", config.AccessKeyId);
-        parquetWriterConfig.set("fs.s3.awsSecretAccessKey", config.SecretAccessKey);
+        parquetWriterConfig.set("fs.s3.awsAccessKeyId", config.getAccessKeyId());
+        parquetWriterConfig.set("fs.s3.awsSecretAccessKey", config.getSecretAccessKey());
 
     }
 
