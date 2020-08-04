@@ -68,6 +68,11 @@ public class AWSS3Sink implements Sink<byte[]> {
 
     private String filename;
 
+    // debug
+    private int groupCounter = 0;
+    private int fileSuffix = 0;
+    // end of debug
+
     /**
     * Write a message to Sink
     * @param inputRecordContext Context of input record from the source
@@ -84,23 +89,7 @@ public class AWSS3Sink implements Sink<byte[]> {
             // Optional<Message<byte[]>> msgOption = record.getMessage(); //.get();
             // LOG.error("message option isPresent {}", msgOption.isPresent());
             
-            try {
-                byte[] data = record.getValue();
-                String convJson = new String(data); // StandardCharsets.UTF_8);
-                LOG.info(convJson);
-                LOG.info("data payload length is {} string-value {}", data.length);
-                this.avroSchema = JsonUtil.inferSchema(JsonUtil.parse(convJson), "schemafromjson");
-                
-                LOG.info(avroSchema.toString());
-
-            } catch (Exception e) {
-                e.printStackTrace();
-                LOG.error("msgOption is ", e);
-            }
-            
             this.filename = getFilename(this.filePrefix, ledgerId);
-            LOG.info("filename is {}", this.filename);
-
             this.recordWriter.write(record, this.filename);
         }
 

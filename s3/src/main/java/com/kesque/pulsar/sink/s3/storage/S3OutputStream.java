@@ -81,12 +81,10 @@ public class S3OutputStream extends PositionOutputStream {
     this.compressionLevel = conf.compressionLevel;
     this.position = 0L;
     log.info("Create S3OutputStream for bucket '{}' key '{}'", bucket, key);
-    System.out.println("created S3OutputStream ... buffer partSize " + conf.partSize+ " bucket " + bucket + " keyname: " + key);
   }
 
   @Override
   public void write(int b) throws IOException {
-    System.out.println("write 1 called size b " + b);
     buffer.put((byte) b);
     if (!buffer.hasRemaining()) {
       uploadPart();
@@ -102,7 +100,6 @@ public class S3OutputStream extends PositionOutputStream {
 
   @Override
   public void write(byte[] b, int off, int len) throws IOException {
-    System.out.println("write 3 called off:"  + off + " length:" + len + " remaining:" + buffer.remaining());
     if (b == null) {
       throw new NullPointerException();
     } else if (outOfRange(off, b.length) || len < 0 || outOfRange(off + len, b.length)) {
@@ -113,13 +110,11 @@ public class S3OutputStream extends PositionOutputStream {
 
     if (buffer.remaining() <= len) {
       int firstPart = buffer.remaining();
-      //System.out.println("first part " + firstPart + " position " + position);
       buffer.put(b, off, firstPart);
       position += firstPart;
       uploadPart();
       write(b, off + firstPart, len - firstPart);
     } else {
-      //System.out.println("position " + position + " off " + off + " length " + len);
       buffer.put(b, off, len);
       position += len;
     }
@@ -130,7 +125,6 @@ public class S3OutputStream extends PositionOutputStream {
   }
 
   private void uploadPart() throws IOException {
-    System.out.println("upload part partsize is " + partSize);
     uploadPart(partSize);
     buffer.clear();
   }
@@ -138,11 +132,8 @@ public class S3OutputStream extends PositionOutputStream {
   private void uploadPart(final int size) throws IOException {
     if (multiPartUpload == null) {
       log.info("New multi-part upload for bucket '{}' key '{}'", bucket, key);
-      System.out.println("bucket " + bucket + " key "+ key);
       multiPartUpload = newMultipartUpload();
     }
-
-    System.out.println("Object upload started");
 
     try {
       multiPartUpload.uploadPart(new ByteArrayInputStream(buffer.array()), size);
@@ -172,7 +163,6 @@ public class S3OutputStream extends PositionOutputStream {
       }
       multiPartUpload.complete();
       log.debug("Upload complete for bucket '{}' key '{}'", bucket, key);
-      System.out.println("Upload complete for bucket " + bucket + " key " + key);
     } catch (Exception e) {
       log.error("Multipart upload failed to complete for bucket '{}' key '{}'", bucket, key);
       throw e;
@@ -241,7 +231,6 @@ public class S3OutputStream extends PositionOutputStream {
     public MultipartUpload(String uploadId) {
       this.uploadId = uploadId;
       this.partETags = new ArrayList<>();
-      System.out.println("create MultipartUpload " + key + " uploadID " + uploadId);
       log.debug(
           "Initiated multi-part upload for bucket key '{}' with id '{}'",
           key,
@@ -261,7 +250,6 @@ public class S3OutputStream extends PositionOutputStream {
                                             .withPartSize(partSize)
                                             .withGeneralProgressListener(progressListener);
       log.debug("Uploading part {} for id '{}'", currentPartNumber, uploadId);
-      System.out.println("Uploading part "+ currentPartNumber+" upload id is " +uploadId);
       partETags.add(s3.uploadPart(request).getPartETag());
     }
 

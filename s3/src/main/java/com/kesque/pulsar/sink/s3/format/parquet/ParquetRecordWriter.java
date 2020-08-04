@@ -3,6 +3,10 @@ package com.kesque.pulsar.sink.s3.format.parquet;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import java.io.IOException;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.kesque.pulsar.sink.s3.AWSS3Config;
@@ -18,6 +22,7 @@ import org.apache.avro.io.BinaryDecoder;
 import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.DecoderFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.logging.log4j.util.Strings;
 import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.hadoop.ParquetFileWriter;
 import org.apache.parquet.hadoop.ParquetWriter;
@@ -36,12 +41,22 @@ public class ParquetRecordWriter implements RecordWriter {
     private AWSS3Config config;
     private S3Storage s3Storage;
     private Configuration parquetWriterConfig;
-    private String currentFile = "";
     private Schema avroSchema;
-    private Record<byte[]> record; // kept for batch ack
+    private volatile String currentFile = "";
+    private volatile Record<byte[]> lastRecord; // kept for batch ack
 
-    S3ParquetOutputFile s3ParquetOutputFile = null;
-    private ParquetWriter<GenericData.Record> writer = null;
+    // parallel writer size
+    int WRITER_LIMIT = 4;
+
+    // key is the file name in S3
+    private ConcurrentHashMap<String, ParquetWriter<GenericData.Record>> writerMap = new ConcurrentHashMap<String, ParquetWriter<GenericData.Record>>(WRITER_LIMIT); 
+    private ConcurrentHashMap<String, S3ParquetOutputFile> s3ParquetOutputFileMap = new ConcurrentHashMap<String, S3ParquetOutputFile>(WRITER_LIMIT);
+
+    // a thread pool of hard coded 4 threads for final commit and upload s3
+    ExecutorService uploaderExecutor = Executors.newFixedThreadPool(WRITER_LIMIT);
+
+    // S3ParquetOutputFile s3ParquetOutputFile = null;
+    // private ParquetWriter<GenericData.Record> writer = null;
 
     public ParquetRecordWriter(AWSS3Config confg, S3Storage storage) {
         this.config = confg;
@@ -50,57 +65,90 @@ public class ParquetRecordWriter implements RecordWriter {
         parquetWriterConfig = new Configuration();
         parquetWriterConfig.set("fs.s3.awsAccessKeyId", config.getAccessKeyId());
         parquetWriterConfig.set("fs.s3.awsSecretAccessKey", config.getSecretAccessKey());
-
     }
 
     @Override
     public void write(Record<byte[]> record, String file) {
         byte[] data = record.getValue();
         String convJson = new String(data); // StandardCharsets.UTF_8);
-        log.info("data payload length is {} string-value {}", data.length);
         JsonNode datum = JsonUtil.parse(convJson);
         this.avroSchema = JsonUtil.inferSchema(JsonUtil.parse(convJson), "schemafromjson");
         log.info(avroSchema.toString());
 
         GenericData.Record convertedRecord = (org.apache.avro.generic.GenericData.Record) JsonUtil.convertToAvro(GenericData.get(), datum, avroSchema);
+        writeParquet(convertedRecord, file);
+        this.lastRecord = record;
+    }
+
+    private synchronized void writeParquet(GenericData.Record record, String file) {
+        log.info("currentFile is {} file name is {}", this.currentFile, file);
+        String lastFile = this.currentFile; // save a copy because currentFile can be replace in the main thread
+        if (Strings.isNotBlank(lastFile) && !file.equals(lastFile)) {
+            uploaderExecutor.execute(() -> {
+                ParquetWriter<GenericData.Record> writer = writerMap.get(lastFile);
+                if (writer == null) {
+                    log.error("fatal error - failed to find parquet writer to match file {}", lastFile);
+                    return;
+                }
+                S3ParquetOutputFile s3ParquetOutputFile = s3ParquetOutputFileMap.get(lastFile);
+                if (s3ParquetOutputFile == null) {
+                    log.error("fatal error - failed to find s3ParquetOutputFile to match file {}", lastFile);
+                    return;
+                }
+
+                // when a new file and parquet writer is required
+                s3ParquetOutputFile.s3out.setCommit();
+                try {
+                    writer.close();
+                } catch (IOException e) {
+                    log.error("close parquet writer exception {}", e.getMessage());
+                    e.printStackTrace();
+                }
+                writerMap.remove(lastFile);
+                s3ParquetOutputFileMap.remove(lastFile);
+                log.info("cumulative ack all pulsar messages and write to existing parquet writer, map size {}", writerMap.size());
+                lastRecord.ack(); // depends on cumulative ack
+
+            });
+            
+        }
+        this.currentFile = file; // for the next write
+
+        ParquetWriter<GenericData.Record> writer = this.writerMap.get(file);
+        if (writer==null) {
+            log.info("write to a new parquet writer with file {} currentFile {}", file, this.currentFile);
+            S3ParquetOutputFile s3ParquetOutputFile = new S3ParquetOutputFile(this.s3Storage, file);
+
+            try {
+                writer = AvroParquetWriter.<GenericData.Record>builder(s3ParquetOutputFile).withSchema(avroSchema)
+                        .withCompressionCodec(CompressionCodecName.SNAPPY) // GZIP
+                        .withWriteMode(ParquetFileWriter.Mode.OVERWRITE).withConf(parquetWriterConfig)
+                        .withPageSize(4 * 1024 * 1024) // For compression
+                        .withRowGroupSize(16 * 1024 * 1024) // For write buffering (Page size)
+                        .build();
+            } catch (IOException e) {
+                log.error("create parquet s3 writer exception {}", e.getMessage());
+                e.printStackTrace();
+            }
+
+            s3ParquetOutputFileMap.put(file, s3ParquetOutputFile);
+            writerMap.put(file, writer);
+            log.info("put writer and parquet output file to {}", file);
+        }
 
         try {
-            if (file.equals(currentFile)) {
-                log.info("write to existing parquet writer");
-                writer.write(convertedRecord);
-
-            } else {
-                this.currentFile = file; 
-                if (this.writer != null) {
-                    writer.write(convertedRecord);
-                    log.info("cumulative ack all pulsar messages and write to existing parquet writer");
-                    record.ack(); // depends on cumulative ack
-                    s3ParquetOutputFile.s3out.setCommit();
-                    this.writer.close();
-                    this.writer = null;
-                } else {
-                    s3ParquetOutputFile = new S3ParquetOutputFile(this.s3Storage, file);
-
-                    log.info("write to a new parquet writer");
-                
-                    this.writer = AvroParquetWriter.<GenericData.Record>builder(s3ParquetOutputFile).withSchema(avroSchema)
-                            .withCompressionCodec(CompressionCodecName.SNAPPY) // GZIP
-                            .withWriteMode(ParquetFileWriter.Mode.OVERWRITE).withConf(parquetWriterConfig)
-                            .withPageSize(4 * 1024 * 1024) // For compression
-                            .withRowGroupSize(16 * 1024 * 1024) // For write buffering (Page size)
-                            .build();
-                    
-                    writer.write(convertedRecord);
-                }
-            }
+            writer.write(record);
         } catch (IOException e) {
-            e.printStackTrace();
             log.error("write to parquet s3 exception {}", e.getMessage());
+            e.printStackTrace();
         }
     }
 
     @Override
     public void close() {
+        if (!uploaderExecutor.isShutdown()) {
+            uploaderExecutor.shutdown();
+        }
         log.info("ParquetRecordWriter close()");
     }
 
