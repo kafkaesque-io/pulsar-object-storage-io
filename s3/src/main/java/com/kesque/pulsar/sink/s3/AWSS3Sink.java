@@ -7,6 +7,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -19,6 +20,7 @@ import com.kesque.pulsar.sink.s3.storage.S3Storage;
 import org.apache.avro.SchemaParseException;
 import org.apache.avro.reflect.AvroSchema;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.pulsar.client.api.Message;
 import org.apache.pulsar.client.api.Schema;
 import org.apache.pulsar.common.protocol.schema.SchemaData;
 import org.apache.pulsar.common.schema.SchemaInfo;
@@ -30,6 +32,7 @@ import org.apache.pulsar.io.core.SinkContext;
 import org.apache.pulsar.io.core.annotations.Connector;
 import org.apache.pulsar.io.core.annotations.IOType;
 import org.inferred.freebuilder.shaded.com.google.common.primitives.Bytes;
+import org.kitesdk.data.spi.JsonUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,7 +58,6 @@ public class AWSS3Sink implements Sink<byte[]> {
     
     private int fileSizeBytes = 10 * 1024 * 1024;
 
-    private int bufferBytes = 0;
     private List<Record<byte[]>> incomingList;
     private ScheduledExecutorService flushExecutor;
 
@@ -75,20 +77,31 @@ public class AWSS3Sink implements Sink<byte[]> {
     @Override
     public void write(Record<byte[]> record) throws Exception {
         synchronized (this) {
-            bufferBytes += record.getValue().length;
-            incomingList.add(record);
-            //long epoch = record.getEventTime().get();
+            int len = record.getValue().length;
 
-            // build avro schema for parquet format
-            this.schemaInfo = record.getSchema().getSchemaInfo();
-            this.avroSchema = new org.apache.avro.Schema.Parser().parse(
-               new String(this.schemaInfo.getSchema(), UTF_8)
-            );
-            
-            //String key = record.getKey().get(); // key is for file name
             Long ledgerId = getLedgerId(record.getRecordSequence().get());
+            LOG.info("ledgerID {} and value's length {}", ledgerId, len);
+            // Optional<Message<byte[]>> msgOption = record.getMessage(); //.get();
+            // LOG.error("message option isPresent {}", msgOption.isPresent());
+            
+            try {
+                byte[] data = record.getValue();
+                String convJson = new String(data); // StandardCharsets.UTF_8);
+                LOG.info(convJson);
+                LOG.info("data payload length is {} string-value {}", data.length);
+                this.avroSchema = JsonUtil.inferSchema(JsonUtil.parse(convJson), "schemafromjson");
+                
+                LOG.info(avroSchema.toString());
 
+            } catch (Exception e) {
+                e.printStackTrace();
+                LOG.error("msgOption is ", e);
+            }
+            
             this.filename = getFilename(this.filePrefix, ledgerId);
+            LOG.info("filename is {}", this.filename);
+
+            this.recordWriter.write(record, this.filename);
         }
 
         //bytes to generic data ??
@@ -108,17 +121,15 @@ public class AWSS3Sink implements Sink<byte[]> {
     */
     @Override
     public void open(Map<String, Object> config, SinkContext sinkContext) throws Exception {
-        System.out.println("open aws s3 sink configs size " + config.size());
+        LOG.info("open aws s3 sink configs size {}", config.size());
         s3Config = AWSS3Config.load(config);
-        System.out.println(s3Config.getAccessKeyId());
-        for (Map.Entry<String, Object> en : config.entrySet()) {
-            System.out.println(en.getKey());
-        }
 
         bucketName = s3Config.getBucketName();
         for (String topicName : sinkContext.getInputTopics()){
             filePrefix = topicName + "-" + filePrefix;
         }
+        System.out.println("filePrefix " + this.filePrefix);
+        LOG.info("filePrefix is " + this.filePrefix);
 
         incomingList = Lists.newArrayList();
 
@@ -134,7 +145,6 @@ public class AWSS3Sink implements Sink<byte[]> {
 
     private boolean isAvroSchema(SchemaData schemaData) {
         try {
-
             org.apache.avro.Schema.Parser fromParser = new org.apache.avro.Schema.Parser();
             fromParser.setValidateDefaults(false);
             org.apache.avro.Schema fromSchema = fromParser.parse(new String(schemaData.getData(), UTF_8));

@@ -4,6 +4,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 
 import java.io.IOException;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.kesque.pulsar.sink.s3.AWSS3Config;
 import com.kesque.pulsar.sink.s3.format.RecordWriter;
 import com.kesque.pulsar.sink.s3.storage.S3ParquetOutputFile;
@@ -23,6 +24,7 @@ import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.pulsar.common.schema.SchemaInfo;
 import org.apache.pulsar.functions.api.Record;
+import org.kitesdk.data.spi.JsonUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,7 +36,7 @@ public class ParquetRecordWriter implements RecordWriter {
     private AWSS3Config config;
     private S3Storage s3Storage;
     private Configuration parquetWriterConfig;
-    private String lastFile = "";
+    private String currentFile = "";
     private Schema avroSchema;
     private Record<byte[]> record; // kept for batch ack
 
@@ -53,32 +55,43 @@ public class ParquetRecordWriter implements RecordWriter {
 
     @Override
     public void write(Record<byte[]> record, String file) {
-        SchemaInfo schemaInfo = record.getSchema().getSchemaInfo();
-        org.apache.avro.Schema avroSchema = new org.apache.avro.Schema.Parser()
-                .parse(new String(schemaInfo.getSchema(), UTF_8));
+        byte[] data = record.getValue();
+        String convJson = new String(data); // StandardCharsets.UTF_8);
+        log.info("data payload length is {} string-value {}", data.length);
+        JsonNode datum = JsonUtil.parse(convJson);
+        this.avroSchema = JsonUtil.inferSchema(JsonUtil.parse(convJson), "schemafromjson");
+        log.info(avroSchema.toString());
+
+        GenericData.Record convertedRecord = (org.apache.avro.generic.GenericData.Record) JsonUtil.convertToAvro(GenericData.get(), datum, avroSchema);
 
         try {
-            if (file.equals(lastFile)) {
-                writer.write((org.apache.avro.generic.GenericData.Record) record);
+            if (file.equals(currentFile)) {
+                log.info("write to existing parquet writer");
+                writer.write(convertedRecord);
 
             } else {
+                this.currentFile = file; 
                 if (this.writer != null) {
+                    writer.write(convertedRecord);
+                    log.info("cumulative ack all pulsar messages and write to existing parquet writer");
                     record.ack(); // depends on cumulative ack
                     s3ParquetOutputFile.s3out.setCommit();
                     this.writer.close();
+                    this.writer = null;
+                } else {
+                    s3ParquetOutputFile = new S3ParquetOutputFile(this.s3Storage, file);
+
+                    log.info("write to a new parquet writer");
+                
+                    this.writer = AvroParquetWriter.<GenericData.Record>builder(s3ParquetOutputFile).withSchema(avroSchema)
+                            .withCompressionCodec(CompressionCodecName.SNAPPY) // GZIP
+                            .withWriteMode(ParquetFileWriter.Mode.OVERWRITE).withConf(parquetWriterConfig)
+                            .withPageSize(4 * 1024 * 1024) // For compression
+                            .withRowGroupSize(16 * 1024 * 1024) // For write buffering (Page size)
+                            .build();
+                    
+                    writer.write(convertedRecord);
                 }
-                s3ParquetOutputFile = new S3ParquetOutputFile(this.s3Storage, file);
-                // this is a new file / ledger
-            
-                this.writer = AvroParquetWriter.<GenericData.Record>builder(s3ParquetOutputFile).withSchema(avroSchema)
-                        .withCompressionCodec(CompressionCodecName.SNAPPY) // GZIP
-                        .withWriteMode(ParquetFileWriter.Mode.OVERWRITE).withConf(parquetWriterConfig)
-                        .withPageSize(4 * 1024 * 1024) // For compression
-                        .withRowGroupSize(16 * 1024 * 1024) // For write buffering (Page size)
-                        .build();
-                
-                writer.write((org.apache.avro.generic.GenericData.Record) record);   writer.write((org.apache.avro.generic.GenericData.Record) record);
-                
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -86,17 +99,14 @@ public class ParquetRecordWriter implements RecordWriter {
         }
     }
 
-
     @Override
     public void close() {
-        // TODO Auto-generated method stub
-
+        log.info("ParquetRecordWriter close()");
     }
 
     @Override
     public void commit() {
-        // TODO Auto-generated method stub
-
+        log.info("ParquetRecordWriter commit()");
     }
     
 }
