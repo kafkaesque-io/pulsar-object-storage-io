@@ -18,7 +18,6 @@ public class S3ParquetOutputFile implements OutputFile {
 
     @Override
     public PositionOutputStream create(long blockSizeHint) throws IOException {
-        System.out.println("S3ParquetOutputStream create PositionOutputStream");
         s3out = (S3ParquetOutputStream) storage.create(filename, true);
         return s3out;
     }

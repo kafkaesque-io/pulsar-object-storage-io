@@ -185,7 +185,6 @@ public class S3Storage {
           throw new IllegalArgumentException("Path can not be empty!");
         }
     
-        System.out.println("S3OutputStream . create() ... ");
         return new S3ParquetOutputStream(path, this.conf, s3);
     }
 }

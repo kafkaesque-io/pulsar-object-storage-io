@@ -2,6 +2,9 @@ package com.kesque.pulsar.sink.s3;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.Instant;
+
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import java.util.HashMap;
@@ -66,12 +69,11 @@ public class AWSS3Sink implements Sink<byte[]> {
 
     private ParquetRecordWriter recordWriter;
 
-    private String filename;
+    private volatile String filename;
 
-    // debug
-    private int groupCounter = 0;
-    private int fileSuffix = 0;
-    // end of debug
+    private long lastRecordEpoch = 0;
+
+    private Duration timeTriggerDuration = Duration.ofHours(1);
 
     /**
     * Write a message to Sink
@@ -82,10 +84,11 @@ public class AWSS3Sink implements Sink<byte[]> {
     @Override
     public void write(Record<byte[]> record) throws Exception {
         synchronized (this) {
-            int len = record.getValue().length;
+            //int len = record.getValue().length;
 
+            this.lastRecordEpoch = record.getEventTime().get();
             Long ledgerId = getLedgerId(record.getRecordSequence().get());
-            LOG.info("ledgerID {} and value's length {}", ledgerId, len);
+            LOG.info("ledgerID {} event time {}", ledgerId, this.lastRecordEpoch);
             // Optional<Message<byte[]>> msgOption = record.getMessage(); //.get();
             // LOG.error("message option isPresent {}", msgOption.isPresent());
             
@@ -93,7 +96,6 @@ public class AWSS3Sink implements Sink<byte[]> {
             this.recordWriter.write(record, this.filename);
         }
 
-        //bytes to generic data ??
     }
 
     @Override
@@ -117,7 +119,6 @@ public class AWSS3Sink implements Sink<byte[]> {
         for (String topicName : sinkContext.getInputTopics()){
             filePrefix = topicName + "-" + filePrefix;
         }
-        System.out.println("filePrefix " + this.filePrefix);
         LOG.info("filePrefix is " + this.filePrefix);
 
         incomingList = Lists.newArrayList();
@@ -145,5 +146,9 @@ public class AWSS3Sink implements Sink<byte[]> {
 
     private static String getFilename(String prefix, Long ledger) {
         return prefix + Long.toString(ledger);
+    }
+
+    private boolean isTimeTriggered() {
+        return Util.isOver(Instant.ofEpochMilli(lastRecordEpoch), timeTriggerDuration);
     }
 }

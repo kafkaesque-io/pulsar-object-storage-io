@@ -43,7 +43,7 @@ public class ParquetRecordWriter implements RecordWriter {
     private Configuration parquetWriterConfig;
     private Schema avroSchema;
     private volatile String currentFile = "";
-    private volatile Record<byte[]> lastRecord; // kept for batch ack
+    private volatile Record<byte[]> currentRecord; // kept for batch ack
 
     // parallel writer size
     int WRITER_LIMIT = 4;
@@ -77,12 +77,13 @@ public class ParquetRecordWriter implements RecordWriter {
 
         GenericData.Record convertedRecord = (org.apache.avro.generic.GenericData.Record) JsonUtil.convertToAvro(GenericData.get(), datum, avroSchema);
         writeParquet(convertedRecord, file);
-        this.lastRecord = record;
+        this.currentRecord = record;
     }
 
     private synchronized void writeParquet(GenericData.Record record, String file) {
         log.info("currentFile is {} file name is {}", this.currentFile, file);
         String lastFile = this.currentFile; // save a copy because currentFile can be replace in the main thread
+        Record<byte[]> lastRecord = this.currentRecord; // ditto save a copy
         if (Strings.isNotBlank(lastFile) && !file.equals(lastFile)) {
             uploaderExecutor.execute(() -> {
                 ParquetWriter<GenericData.Record> writer = writerMap.get(lastFile);
@@ -108,9 +109,7 @@ public class ParquetRecordWriter implements RecordWriter {
                 s3ParquetOutputFileMap.remove(lastFile);
                 log.info("cumulative ack all pulsar messages and write to existing parquet writer, map size {}", writerMap.size());
                 lastRecord.ack(); // depends on cumulative ack
-
             });
-            
         }
         this.currentFile = file; // for the next write
 

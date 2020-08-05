@@ -65,6 +65,15 @@ public class AWSS3Config implements Serializable {
         this.secretAccessKey = secretKey;
     }
 
+    // support trigger types are ledger, time based, size based
+    private String triggerType = "ledger";
+    public String getTriggerType() {
+        return this.triggerType;
+    }
+    public void setTriggerType(String triggerType) {
+        this.triggerType = triggerType;
+    }
+
     @FieldDoc(
         required = false,
         defaultValue = "",
