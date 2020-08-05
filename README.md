@@ -12,7 +12,7 @@ GET `admin/v2/functions/connectors` displays the nar is loaded successfully as
 ```
 
 ```
-$ bin/pulsar-admin sinks create --archive ./connectors/pulsar-io-s3-1.0.nar --inputs aws-s3-input-topic --name aws-s3-test --sink-config-file ./connectors/pulsar-postgres-jdbc-sink.yaml
+$ bin/pulsar-admin sinks create --archive ./connectors/pulsar-io-s3-1.0.nar --inputs aws-s3-input-topic --name aws-s3-test --sink-config-file ./connectors/pulsar-s3-io.yaml --processing-guarantees EFFECTIVELY_ONCE --subs-position Earliest
 "Created successfully"
 
 $ bin/pulsar-admin sinks list

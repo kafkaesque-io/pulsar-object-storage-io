@@ -84,9 +84,10 @@ public class AWSS3Sink implements Sink<byte[]> {
     @Override
     public void write(Record<byte[]> record) throws Exception {
         synchronized (this) {
-            //int len = record.getValue().length;
-
-            this.lastRecordEpoch = record.getEventTime().get();
+            Optional<Long> eventTimeOptional = record.getEventTime();
+            if (eventTimeOptional.isPresent()) {
+                this.lastRecordEpoch = eventTimeOptional.get();
+            }
             Long ledgerId = getLedgerId(record.getRecordSequence().get());
             LOG.info("ledgerID {} event time {}", ledgerId, this.lastRecordEpoch);
             // Optional<Message<byte[]>> msgOption = record.getMessage(); //.get();
