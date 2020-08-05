@@ -16,7 +16,6 @@ public class S3ParquetOutputStream extends S3OutputStream {
 
   @Override
   public void close() throws IOException {
-    System.out.println("S3ParquetOutStream close()");
     if (commit) {
       super.commit();
       commit = false;

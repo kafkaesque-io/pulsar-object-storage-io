@@ -25,6 +25,7 @@ $ bin/pulsar-admin sinks delete --name aws-s3-test
 ```
 
 ## Build
+The command to build a nar file.
 ```
 $ cd s3
 $ mvn clean install

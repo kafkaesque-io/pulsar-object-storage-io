@@ -200,16 +200,8 @@
     <repository>
       <id>github</id>
       <name>GitHub Apache Maven Packages</name>
-      <url>https://maven.pkg.github.com/kafkaesque-io/pulsar-client-plugin</url>
+      <url>https://maven.pkg.github.com/kafkaesque-io/pulsar-object-storage-io</url>
     </repository>
-    <!-- repository>
-      <id>gitlab-maven</id>
-      <url>https://gitlab.com/api/v4/projects/16426331/packages/maven</url>
-    </repository>
-    <snapshotRepository>
-      <id>gitlab-maven</id>
-      <url>https://gitlab.com/api/v4/projects/16426331/packages/maven</url>
-    </snapshotRepository -->
   </distributionManagement>
 </project>
         <!-- repositories>
