@@ -20,3 +20,4 @@
 name: aws-s3
 description: AWS S3 sink
 sinkClass: com.kesque.pulsar.sink.s3.AWSS3Sink
+sinkConfigClass: com.kesque.pulsar.sink.s3.AWSS3Config
