@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import com.amazonaws.services.s3.AmazonS3;
 import com.google.common.collect.Lists;
@@ -40,9 +41,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * A Simple Redis sink, which stores the key/value records from Pulsar in redis.
- * Note that records from Pulsar with null keys or values will be ignored.
- * This class expects records from Pulsar to have a key and value that are stored as bytes or a string.
+ * This is an AWS S3 sink that receives JSON message and store them
+ * Apache Parquet format in AWS S3.
  */
 @Connector(
     name = "aws-s3",
@@ -54,15 +54,13 @@ public class AWSS3Sink implements Sink<byte[]> {
 
     private static final Logger LOG = LoggerFactory.getLogger(AWSS3Sink.class);
 
-
     private AWSS3Config s3Config;
     private String bucketName;
     private String filePrefix = "";
-    
+
     private int fileSizeBytes = 10 * 1024 * 1024;
 
-    private List<Record<byte[]>> incomingList;
-    private ScheduledExecutorService flushExecutor;
+    private ScheduledExecutorService s3RolloverExecutor;
 
     private SchemaInfo schemaInfo;
     private org.apache.avro.Schema avroSchema;
@@ -73,35 +71,36 @@ public class AWSS3Sink implements Sink<byte[]> {
 
     private long lastRecordEpoch = 0;
 
-    private Duration timeTriggerDuration = Duration.ofHours(1);
+    private long s3ObjectRolloverMinutes = 10;
+    private long MILLIS_IN_MINUTE = 60 * 1000;
 
     /**
-    * Write a message to Sink
-    * @param inputRecordContext Context of input record from the source
-    * @param record record to write to sink
-    * @throws Exception
-    */
+     * Write a message to Sink
+     * 
+     * @param inputRecordContext Context of input record from the source
+     * @param record             record to write to sink
+     * @throws Exception
+     */
     @Override
     public void write(Record<byte[]> record) throws Exception {
         synchronized (this) {
-            Optional<Long> eventTimeOptional = record.getEventTime();
-            if (eventTimeOptional.isPresent()) {
-                this.lastRecordEpoch = eventTimeOptional.get();
-            }
+            this.lastRecordEpoch = Util.getNowMilli();
             Long ledgerId = getLedgerId(record.getRecordSequence().get());
-            LOG.info("ledgerID {} event time {}", ledgerId, this.lastRecordEpoch);
+            if (this.s3Config.debugLoglevel()) {
+                LOG.info("ledgerID {} event time {}", ledgerId, this.lastRecordEpoch);
+            }
             // Optional<Message<byte[]>> msgOption = record.getMessage(); //.get();
             // LOG.error("message option isPresent {}", msgOption.isPresent());
-            
+
             this.filename = getFilename(this.filePrefix, ledgerId);
             this.recordWriter.write(record, this.filename);
         }
-
     }
 
     @Override
     public void close() throws IOException {
         LOG.info("s3 sink stopped...");
+        s3RolloverExecutor.shutdown();
     }
 
     /**
@@ -122,12 +121,13 @@ public class AWSS3Sink implements Sink<byte[]> {
         }
         LOG.info("filePrefix is " + this.filePrefix);
 
-        incomingList = Lists.newArrayList();
-
-        flushExecutor = Executors.newScheduledThreadPool(1);
-
         S3Storage storage = new S3Storage(this.s3Config, "");
         this.recordWriter = RecordWriterProvider.createParquetRecordWriter(s3Config, storage);
+
+        this.s3ObjectRolloverMinutes = s3Config.getS3ObjectRolloverMinutes();
+        LOG.info("s3 object rollover interval {} minutes", this.s3ObjectRolloverMinutes);
+        s3RolloverExecutor = Executors.newScheduledThreadPool(1);
+        s3RolloverExecutor.scheduleAtFixedRate(() -> triggerS3ObjectRollover(), 0, s3Config.getS3ObjectRolloverMinutes(), TimeUnit.MINUTES);
     }
 
     public static long getLedgerId(long sequenceId) {
@@ -149,7 +149,13 @@ public class AWSS3Sink implements Sink<byte[]> {
         return prefix + Long.toString(ledger);
     }
 
-    private boolean isTimeTriggered() {
-        return Util.isOver(Instant.ofEpochMilli(lastRecordEpoch), timeTriggerDuration);
+    private void triggerS3ObjectRollover() {
+        if (this.lastRecordEpoch == 0) {
+            return;
+        }
+
+        if (MILLIS_IN_MINUTE * s3ObjectRolloverMinutes < (Util.getNowMilli() - this.lastRecordEpoch)) {
+            this.recordWriter.commit();
+        }
     }
 }

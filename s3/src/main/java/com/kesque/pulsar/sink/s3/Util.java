@@ -3,20 +3,21 @@ package com.kesque.pulsar.sink.s3;
 import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Calendar;
 
 public class Util {
 
-    public static String ensureValidBucketName(String bucketName) {
-		String formatted = bucketName.replaceAll("\\s+","_");
+	public static String ensureValidBucketName(String bucketName) {
+		String formatted = bucketName.replaceAll("\\s+", "_");
 		int length = bucketName.length();
-		if(length >= 62)
+		if (length >= 62)
 			length = 62;
-		formatted = formatted.substring(0,length);
-		formatted = formatted.replace(".","d");
+		formatted = formatted.substring(0, length);
+		formatted = formatted.replace(".", "d");
 		formatted = formatted.toLowerCase();
-		if(formatted.endsWith("-"))
-			formatted = formatted.substring(0,length - 1);
-		
+		if (formatted.endsWith("-"))
+			formatted = formatted.substring(0, length - 1);
+
 		return formatted;
 	}
 
@@ -32,11 +33,19 @@ public class Util {
 
 	/**
 	 * Check if the current time is over the duration limite since the start.
+	 * 
 	 * @param start
 	 * @param limit
 	 * @return
 	 */
 	public static boolean isOver(Instant start, Duration limit) {
 		return Duration.between(start, Instant.now()).compareTo(limit) > 0;
+	}
+
+	/**
+	 * Get the current time in millieseconds.
+	 */
+	public static long getNowMilli() {
+		return Calendar.getInstance().getTimeInMillis();
 	}
 }

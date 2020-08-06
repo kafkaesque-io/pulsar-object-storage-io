@@ -73,7 +73,9 @@ public class ParquetRecordWriter implements RecordWriter {
         String convJson = new String(data); // StandardCharsets.UTF_8);
         JsonNode datum = JsonUtil.parse(convJson);
         this.avroSchema = JsonUtil.inferSchema(JsonUtil.parse(convJson), "schemafromjson");
-        log.info(avroSchema.toString());
+        if (this.config.debugLoglevel()) {
+            log.info(avroSchema.toString());
+        }
 
         GenericData.Record convertedRecord = (org.apache.avro.generic.GenericData.Record) JsonUtil.convertToAvro(GenericData.get(), datum, avroSchema);
         writeParquet(convertedRecord, file);
@@ -81,7 +83,9 @@ public class ParquetRecordWriter implements RecordWriter {
     }
 
     private synchronized void writeParquet(GenericData.Record record, String file) {
-        log.info("currentFile is {} file name is {}", this.currentFile, file);
+        if (this.config.debugLoglevel()) {
+            log.info("currentFile is {} file name is {}", this.currentFile, file);
+        }
         String lastFile = this.currentFile; // save a copy because currentFile can be replace in the main thread
         Record<byte[]> lastRecord = this.currentRecord; // ditto save a copy
         if (Strings.isNotBlank(lastFile) && !file.equals(lastFile)) {
@@ -152,8 +156,39 @@ public class ParquetRecordWriter implements RecordWriter {
     }
 
     @Override
-    public void commit() {
+    public synchronized void commit() {
         log.info("ParquetRecordWriter commit()");
+        if (Strings.isBlank(this.currentFile)) {
+            return;
+        }
+        // TODO: reduce the synchronized block by only protect these two variables
+        String lastFile = this.currentFile; // save a copy because currentFile can be replace in the main thread
+        Record<byte[]> lastRecord = this.currentRecord; // ditto save a copy
+
+        ParquetWriter<GenericData.Record> writer = writerMap.get(lastFile);
+        if (writer == null) {
+            log.error("fatal error - failed to find parquet writer to match file {}", lastFile);
+            return;
+        }
+        S3ParquetOutputFile s3ParquetOutputFile = s3ParquetOutputFileMap.get(lastFile);
+        if (s3ParquetOutputFile == null) {
+            log.error("fatal error - failed to find s3ParquetOutputFile to match file {}", lastFile);
+            return;
+        }
+
+        // when a new file and parquet writer is required
+        s3ParquetOutputFile.s3out.setCommit();
+        try {
+            writer.close();
+        } catch (IOException e) {
+            log.error("close parquet writer exception {}", e.getMessage());
+            e.printStackTrace();
+        }
+        writerMap.remove(lastFile);
+        s3ParquetOutputFileMap.remove(lastFile);
+        log.info("cumulative ack all pulsar messages and write to existing parquet writer, map size {}", writerMap.size());
+        lastRecord.ack(); // depends on cumulative ack
+
+        this.currentFile = "";
     }
-    
 }

@@ -21,9 +21,8 @@ public interface RecordWriter extends Closeable {
     void close();
 
     /**
-     * Flush writer's data and commit the records in Kafka. Optionally, this operation might also
+     * Flush writer's data and commit the records in Pulsar. Optionally, this operation might also
      * close the writer.
      */
     void commit();
-    
 }
