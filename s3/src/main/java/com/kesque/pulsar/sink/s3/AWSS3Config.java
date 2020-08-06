@@ -65,13 +65,33 @@ public class AWSS3Config implements Serializable {
         this.secretAccessKey = secretKey;
     }
 
-    // support trigger types are ledger, time based, size based
-    private String triggerType = "ledger";
-    public String getTriggerType() {
-        return this.triggerType;
+    // a timer interval for s3 Object rollover in minutes
+    private int s3ObjectRolloverMinutes = 10;
+    public int getS3ObjectRolloverMinutes() {
+        return this.s3ObjectRolloverMinutes;
     }
-    public void setTriggerType(String triggerType) {
-        this.triggerType = triggerType;
+    public void setS3ObjectRolloverMinutes(int s3ObjectRolloverMinutes) {
+        if (s3ObjectRolloverMinutes>0) {
+            this.s3ObjectRolloverMinutes = s3ObjectRolloverMinutes;
+        }
+    }
+
+    private boolean isDebug = false;
+    public boolean debugLoglevel() {
+        return isDebug;
+    }
+
+    // currently only support debug level
+    private String logLevel = "";
+    public String getLogLevel() {
+        return this.logLevel;
+    }
+    /**
+     * @param logLevel the logLevel to set
+     */
+    public void setLogLevel(String logLevel) {
+        this.logLevel = logLevel;
+        this.isDebug = this.logLevel.equalsIgnoreCase("debug");
     }
 
     @FieldDoc(

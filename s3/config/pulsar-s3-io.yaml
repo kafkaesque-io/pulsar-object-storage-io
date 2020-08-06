@@ -4,3 +4,5 @@ configs:
   awsregion: "us-east-2"
   bucketName: "bucket-name"
   partSize: 5242880
+  s3ObjectRolloverMinutes: 10
+  logLevel: "debug"
