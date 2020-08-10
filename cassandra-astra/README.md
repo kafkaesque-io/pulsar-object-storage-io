@@ -35,9 +35,9 @@ ASTRA_DB_PASSWORD=
 ```
 Additionally, `keyspace` and `table name` are mandatory to add rows into Astra Cassandra database.
 
-`table schema` is optional, however, the table schema has to be created on the table before any row can be added if the schema is not specified in the configuration.
+`table schema` is optional. However, the table schema has to be created on the table before any row can be added if the schema is not specified in the configuration.
 
-These configuration must be specifed in [the configuration yaml](./config/pulsar-s3-io.yaml)
+These configuration must be specifed in [the configuration yaml](./config/pulsar-astra-sink.yaml)
 
 When set `logLevel: "debug"`, debug logs will be printed by the sink.
 

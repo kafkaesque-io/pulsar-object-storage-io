@@ -72,8 +72,16 @@ public class AstraSink implements Sink<byte[]> {
     */
     @Override
     public void write(Record<byte[]> record) throws Exception {
-        //TODO: toAstra can be its own thread
-        toAstra(record);
+        //TODO: this can be its own thread
+        try {
+            addRow(buildColumnData(record), this.table);
+            record.ack();
+            if (astraConfig.debugLoglevel()) {
+                log.info("successfully add row");
+            }
+        } catch (Exception e) {
+            log.error("failed to send to astra ", e);
+        }
     }
 
     @Override
@@ -194,21 +202,11 @@ public class AstraSink implements Sink<byte[]> {
         JSONObject obj = new JSONObject(new String(record.getValue()));
         String objStr = "{\"columns\":[";
         for (String key : obj.keySet()) {
-          objStr = objStr + "{\"name\":\"" + key + "\",\"value\":\"" + obj.getString(key) + "\"},";
+            objStr = objStr + "{\"name\":\"" + key + "\",\"value\":\"" + obj.getString(key) + "\"},";
         }
 
         // remove the last comma
         return StringUtils.substring(objStr, 0, objStr.length() - 1) + "]}";
-    }
-
-    private void toAstra(Record<byte[]> record) {
-        try {
-            addRow(buildColumnData(record), this.table);
-        } catch (Exception e) {
-            log.error("failed to send to astra ", e);
-        }
-
-        record.ack();
     }
 
     private String genUUID() {

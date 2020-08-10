@@ -85,15 +85,17 @@ public class AstraConfig implements Serializable {
         this.batchSize = batchSize;
     }
 
-    private boolean isDebug = false;
-    public boolean debugLoglevel() {
-        return isDebug;
-    }
-
     // currently only support debug level
     private String logLevel = "";
     public String getLogLevel() {
         return this.logLevel;
+    }
+    public void setLogLevel(String loglevel) {
+        this.logLevel = loglevel;
+    }
+
+    public boolean debugLoglevel() {
+        return this.logLevel.equalsIgnoreCase("debug");
     }
 
     public static AstraConfig load(String yamlFile) throws IOException {
