@@ -4,7 +4,7 @@
   <groupId>com.kesque.pulsar</groupId>
   <artifactId>pulsar-io-s3</artifactId>
   <packaging>jar</packaging>
-  <version>1.0</version>
+  <version>1.0.1</version>
   <name>pulsar-cloud-storage-io: :: s3</name>
   <url>http://maven.apache.org</url>
   <properties>

@@ -77,6 +77,14 @@ public class AstraConfig implements Serializable {
         this.tableSchema = tableSchema;
     }
 
+    private int batchSize = 20;
+    public int getBatchSize() {
+        return this.batchSize;
+    }
+    public void setBatchSize(int batchSize) {
+        this.batchSize = batchSize;
+    }
+
     private boolean isDebug = false;
     public boolean debugLoglevel() {
         return isDebug;

@@ -1,15 +1,8 @@
 package com.kesque.pulsar.sink.cassandra.astra;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Paths;
-
-import static java.nio.charset.StandardCharsets.UTF_8;
-
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -20,6 +13,7 @@ import com.google.common.collect.Lists;
 import org.apache.avro.SchemaParseException;
 import org.apache.avro.reflect.AvroSchema;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.util.Strings;
 import org.apache.pulsar.client.api.Message;
 import org.apache.pulsar.client.api.Schema;
@@ -39,9 +33,7 @@ import org.slf4j.LoggerFactory;
 
 import kong.unirest.HttpResponse;
 import kong.unirest.Unirest;
-import kong.unirest.HttpResponse;
 import kong.unirest.JsonNode;
-import kong.unirest.Unirest;
 import kong.unirest.json.JSONObject;
 
 /**
@@ -60,7 +52,6 @@ public class AstraSink implements Sink<byte[]> {
     private static final Logger log = LoggerFactory.getLogger(AstraSink.class);
 
     private AstraConfig astraConfig;
-    private String filePrefix = "";
     
     private List<Record<byte[]>> incomingList;
     private ScheduledExecutorService flushExecutor;
@@ -81,15 +72,8 @@ public class AstraSink implements Sink<byte[]> {
     */
     @Override
     public void write(Record<byte[]> record) throws Exception {
-        synchronized (this) {
-            int len = record.getValue().length;
-
-            Long ledgerId = getLedgerId(record.getRecordSequence().get());
-            log.info("ledgerID {} and value's length {}", ledgerId, len);
-            // Optional<Message<byte[]>> msgOption = record.getMessage(); //.get();
-            // log.error("message option isPresent {}", msgOption.isPresent());
-            
-        }
+        //TODO: toAstra can be its own thread
+        toAstra(record);
     }
 
     @Override
@@ -126,7 +110,7 @@ public class AstraSink implements Sink<byte[]> {
             
             String err = "clusterId, region, keyspace, table name, and user credentials must be specified.";
             log.error(err);
-            throw new Exception(err);
+            throw new IllegalArgumentException(err);
         }
         this.baseURL = "https://" + astraConfig.getClusterId() + "-" + astraConfig.getClusterRegion()
             + ".apps.astra.datastax.com/api/rest/v1/";
@@ -191,19 +175,40 @@ public class AstraSink implements Sink<byte[]> {
     }
 
     private void addRow(String rows, String table) {
-        String columns = "{\"columns\":[" + rows + "]}";
+        log.info("addRow {}", rows);
         String url = this.baseURL +"keyspaces/" + astraConfig.getKeySpace() + "/tables/" + table + "/rows";
         HttpResponse<String> response = Unirest.post(url)
         .header("x-cassandra-request-id", genUUID())
         .header("x-cassandra-token", this.token)
         .header("Content-Type", "application/json")
-        .body(columns)
+        .body(rows)
         .asString();
 
         if (response.getStatus() != 201) {
             throw new RuntimeException("failed to add rows status code " + response.getStatus()
                 + " error " + response.getBody());
         }
+    }
+
+    private String buildColumnData(Record<byte[]> record) {
+        JSONObject obj = new JSONObject(new String(record.getValue()));
+        String objStr = "{\"columns\":[";
+        for (String key : obj.keySet()) {
+          objStr = objStr + "{\"name\":\"" + key + "\",\"value\":\"" + obj.getString(key) + "\"},";
+        }
+
+        // remove the last comma
+        return StringUtils.substring(objStr, 0, objStr.length() - 1) + "]}";
+    }
+
+    private void toAstra(Record<byte[]> record) {
+        try {
+            addRow(buildColumnData(record), this.table);
+        } catch (Exception e) {
+            log.error("failed to send to astra ", e);
+        }
+
+        record.ack();
     }
 
     private String genUUID() {
