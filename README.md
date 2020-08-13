@@ -2,6 +2,8 @@
 
 Pulsar AWS S3 sink receives JSON messages over Pulsar topics with the same schema and saves them as Parquet format on AWS S3.
 
+This sink does not support nested JSON object since the object needs to be converted to columnar based Apache Parquet format.
+
 ## Operations
 ### Deployment
 Copy the nar file to ./pulsar/connectors directory
@@ -63,7 +65,9 @@ managedLedgerMaxLedgerRolloverTimeMinutes=240
 ```
 
 ### Topic schema registry
-It is mandatory a schema is enforced over the input topics. The Sink would have fatal error to create parquet format when it receives messages with different schemas.
+It is mandatory a schema is configured against the input topic. The Sink would have fatal error to create parquet format when it receives messages with different schemas.
+
+The sink can perform a schema check under Pulsar 2.6.0+. By the default this check is disabled to be compatible with previous Pulsar version. Set `topicSchemaRequired` to `true` in the config file to enable this check.
 
 ## Build
 The command to build a nar file.

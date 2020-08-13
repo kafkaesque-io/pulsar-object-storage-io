@@ -34,7 +34,6 @@ import org.apache.pulsar.io.core.annotations.FieldDoc;
 import java.io.File;
 import java.io.Serializable;
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public class AWSS3Config implements Serializable {
@@ -74,6 +73,22 @@ public class AWSS3Config implements Serializable {
         if (s3ObjectRolloverMinutes>0) {
             this.s3ObjectRolloverMinutes = s3ObjectRolloverMinutes;
         }
+    }
+
+    private String type = "json-to-parquet";
+    public void setType(String type) {
+        this.type = type;
+    }
+    public String getType() {
+        return this.type;
+    }
+
+    private boolean topicSchemaRequired = false;
+    public void setTopicSchemaRequired(boolean topicSchemaRequired) {
+        this.topicSchemaRequired = topicSchemaRequired;
+    }
+    public boolean getTopicSchemaRequired() {
+        return this.topicSchemaRequired;
     }
 
     private boolean isDebug = false;

@@ -6,3 +6,4 @@ configs:
   partSize: 5242880
   s3ObjectRolloverMinutes: 10
   logLevel: "debug"
+  topicSchemaRequired: false

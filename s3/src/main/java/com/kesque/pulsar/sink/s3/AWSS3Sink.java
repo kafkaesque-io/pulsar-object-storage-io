@@ -52,7 +52,7 @@ import org.slf4j.LoggerFactory;
 )
 public class AWSS3Sink implements Sink<byte[]> {
 
-    private static final Logger LOG = LoggerFactory.getLogger(AWSS3Sink.class);
+    private static final Logger log = LoggerFactory.getLogger(AWSS3Sink.class);
 
     private AWSS3Config s3Config;
     private String bucketName;
@@ -64,6 +64,8 @@ public class AWSS3Sink implements Sink<byte[]> {
 
     private SchemaInfo schemaInfo;
     private org.apache.avro.Schema avroSchema;
+
+    private boolean validateTopicSchema = false;
 
     private ParquetRecordWriter recordWriter;
 
@@ -83,14 +85,23 @@ public class AWSS3Sink implements Sink<byte[]> {
      */
     @Override
     public void write(Record<byte[]> record) throws Exception {
+        if (validateTopicSchema) {
+            org.apache.pulsar.client.api.Schema<byte[]> localSchema = record.getSchema();
+            if (localSchema == null) {
+                log.error("schema has not set up against the topic ");
+            }
+            SchemaInfo info = localSchema.getSchemaInfo();
+            log.info("schema type {} schemadefinition {}", info.getType(), info.getSchemaDefinition());
+            // throws exception if schema cannot be retrieved
+        }
         synchronized (this) {
             this.lastRecordEpoch = Util.getNowMilli();
             Long ledgerId = getLedgerId(record.getRecordSequence().get());
             if (this.s3Config.debugLoglevel()) {
-                LOG.info("ledgerID {} event time {}", ledgerId, this.lastRecordEpoch);
+                log.info("ledgerID {} event time {}", ledgerId, this.lastRecordEpoch);
             }
             // Optional<Message<byte[]>> msgOption = record.getMessage(); //.get();
-            // LOG.error("message option isPresent {}", msgOption.isPresent());
+            // log.error("message option isPresent {}", msgOption.isPresent());
 
             this.filename = getFilename(this.filePrefix, ledgerId);
             this.recordWriter.write(record, this.filename);
@@ -99,7 +110,7 @@ public class AWSS3Sink implements Sink<byte[]> {
 
     @Override
     public void close() throws IOException {
-        LOG.info("s3 sink stopped...");
+        log.info("s3 sink stopped...");
         s3RolloverExecutor.shutdown();
     }
 
@@ -112,20 +123,21 @@ public class AWSS3Sink implements Sink<byte[]> {
     */
     @Override
     public void open(Map<String, Object> config, SinkContext sinkContext) throws Exception {
-        LOG.info("open aws s3 sink configs size {}", config.size());
+        log.info("open aws s3 sink configs size {}", config.size());
         s3Config = AWSS3Config.load(config);
 
+        validateTopicSchema = s3Config.getTopicSchemaRequired();
         bucketName = s3Config.getBucketName();
         for (String topicName : sinkContext.getInputTopics()){
             filePrefix = topicName + "-" + filePrefix;
         }
-        LOG.info("filePrefix is " + this.filePrefix);
+        log.info("filePrefix is " + this.filePrefix);
 
         S3Storage storage = new S3Storage(this.s3Config, "");
         this.recordWriter = RecordWriterProvider.createParquetRecordWriter(s3Config, storage);
 
         this.s3ObjectRolloverMinutes = s3Config.getS3ObjectRolloverMinutes();
-        LOG.info("s3 object rollover interval {} minutes", this.s3ObjectRolloverMinutes);
+        log.info("s3 object rollover interval {} minutes", this.s3ObjectRolloverMinutes);
         s3RolloverExecutor = Executors.newScheduledThreadPool(1);
         s3RolloverExecutor.scheduleAtFixedRate(() -> triggerS3ObjectRollover(), 0, s3Config.getS3ObjectRolloverMinutes(), TimeUnit.MINUTES);
     }
